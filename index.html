@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="description" content="Universal File Simulator – drop any file and preview, inspect, or simulate opening it offline." />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <title>Universal File Simulator</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="header">
+      <div class="logo">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/>
+          <line x1="16" y1="17" x2="8" y2="17"/>
+          <polyline points="10 9 9 9 8 9"/>
+        </svg>
+        <h1>Universal File Simulator</h1>
+      </div>
+      <div class="header-actions">
+        <button id="installBtn" class="btn secondary" hidden>Install App</button>
+        <button id="clearBtn" class="btn secondary" title="Clear current file">Clear</button>
+      </div>
+    </header>
+
+    <main>
+      <!-- Drop zone -->
+      <section id="dropZone" class="drop-zone">
+        <div class="drop-content">
+          <div class="drop-icon">📁</div>
+          <h2>Drop any file here</h2>
+          <p>or click to browse — drop a mod menu / .exe / .jar / .apk / .js / .html and it will try to <strong>simulate the output</strong></p>
+          <input type="file" id="fileInput" multiple accept="*/*" hidden />
+          <button class="btn primary" id="browseBtn">Choose File(s)</button>
+        </div>
+      </section>
+
+      <!-- File list when multiple -->
+      <section id="fileList" class="file-list hidden"></section>
+
+      <!-- Preview / Simulator panel -->
+      <section id="previewPanel" class="preview-panel hidden">
+        <div class="file-meta" id="fileMeta"></div>
+        <div class="toolbar" id="toolbar">
+          <button class="tool-btn active" data-mode="auto">Auto</button>
+          <button class="tool-btn" data-mode="text">Text</button>
+          <button class="tool-btn" data-mode="hex">Hex</button>
+          <button class="tool-btn" data-mode="json">JSON</button>
+          <button class="tool-btn" data-mode="info">Info</button>
+        </div>
+        <div id="previewContent" class="preview-content"></div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>Works offline • Installable PWA • Files stay on your device</span>
+      <a href="https://github.com/" target="_blank" rel="noopener" id="githubLink">GitHub</a>
+    </footer>
+  </div>
+
+  <script src="js/app.js" type="module"></script>
+</body>
+</html>
