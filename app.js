@@ -312,6 +312,31 @@ async function renderSimulate(file) {
 
 async function renderCannotSimulate(file) {
   const name = file.name.toLowerCase();
+
+  // Special case: try to auto-convert JS mod menus into interactive HTML
+  if (name.endsWith(".js") || name.endsWith(".mjs") || name.endsWith(".cjs")) {
+    try {
+      const text = await file.text();
+      const generated = tryGenerateMenuHtml(text, file.name);
+      if (generated) {
+        const blob = new Blob([generated], { type: "text/html" });
+        const url = URL.createObjectURL(blob);
+        previewContent.innerHTML = `
+          <div class="sim-header">
+            <span class="sim-badge success">Auto-converted to HTML</span>
+            <span>Detected mod-menu style JS → generated interactive HTML version</span>
+          </div>
+          <iframe src="${url}" sandbox="allow-same-origin allow-scripts" style="height:65vh;border-radius:8px;border:1px solid var(--border)"></iframe>
+          <p style="margin-top:0.6rem;font-size:0.85rem;color:var(--text-muted)">
+            This is a reconstructed HTML menu based on extracted buttons & categories. It is not the original game menu.
+          </p>`;
+        return;
+      }
+    } catch (e) {
+      console.warn("Menu generation failed", e);
+    }
+  }
+
   let reason = "This file type cannot be executed or visually simulated inside a browser.";
   let tip = "Switch to the <strong>Code + Helper</strong> tab to inspect the source / structure and get coding assistance.";
 
@@ -339,6 +364,127 @@ async function renderCannotSimulate(file) {
     buildToolbar();
     renderPreview();
   });
+}
+
+// ---------- Auto-generate a simple HTML menu from JS mod-menu patterns ----------
+function tryGenerateMenuHtml(source, filename) {
+  // Extract categories
+  const catMatches = [...source.matchAll(/menuAddTo\s*\(\s*["']([^"']+)["']/g)];
+  const categories = [...new Set(catMatches.map(m => m[1]))];
+
+  // Extract buttons / toggles / steppers
+  const items = [];
+  const buttonRe = /menu(Button|Toggle|Stepper)\s*\(\s*["']([^"']+)["']/g;
+  let m;
+  while ((m = buttonRe.exec(source)) !== null) {
+    items.push({ type: m[1].toLowerCase(), label: m[2] });
+  }
+
+  if (categories.length < 2 && items.length < 5) {
+    return null; // not enough structure → don't generate
+  }
+
+  // Group items roughly by order (simple heuristic)
+  const grouped = {};
+  if (categories.length) {
+    categories.forEach(c => (grouped[c] = []));
+    // Put early items into first categories, later ones spread
+    const perCat = Math.ceil(items.length / Math.max(categories.length, 1));
+    items.forEach((item, i) => {
+      const cat = categories[Math.min(Math.floor(i / perCat), categories.length - 1)];
+      grouped[cat].push(item);
+    });
+  } else {
+    grouped["Menu"] = items;
+  }
+
+  // Build a self-contained HTML page
+  const catsJson = JSON.stringify(grouped);
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Auto Menu – ${escapeHtml(filename)}</title>
+<style>
+:root{--bg:#0b0614;--panel:#160e24;--accent:#c084fc;--text:#f3e8ff;--muted:#a78bfa;--border:#3b0764;--success:#4ade80}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,sans-serif;background:radial-gradient(ellipse at top,#1e1033,#0b0614);color:var(--text);min-height:100vh;padding:1rem;display:flex;flex-direction:column;align-items:center}
+h1{font-size:1.3rem;background:linear-gradient(90deg,#c084fc,#fbbf24);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:.3rem}
+.sub{color:var(--muted);font-size:.8rem;margin-bottom:1rem;text-align:center}
+.box{width:100%;max-width:380px;background:var(--panel);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:0 15px 40px rgba(192,132,252,.2)}
+.title{background:linear-gradient(90deg,#3b0764,#581c87);padding:.8rem;text-align:center;font-weight:700;border-bottom:1px solid var(--border)}
+.tabs{display:flex;overflow-x:auto;background:#1a0f2e;border-bottom:1px solid var(--border)}
+.tab{flex:0 0 auto;padding:.6rem .9rem;font-size:.78rem;color:var(--muted);background:0;border:0;cursor:pointer}
+.tab.active{color:var(--accent);border-bottom:2px solid var(--accent);font-weight:600}
+.content{max-height:50vh;overflow-y:auto;padding:.5rem}
+.item{display:flex;align-items:center;justify-content:space-between;padding:.65rem .8rem;margin-bottom:.3rem;background:rgba(255,255,255,.03);border-radius:9px}
+.item-label{font-size:.9rem}
+.item-type{font-size:.68rem;color:var(--muted)}
+.toggle{width:42px;height:22px;background:#333;border-radius:99px;position:relative;cursor:pointer;flex-shrink:0}
+.toggle.on{background:var(--accent)}
+.toggle::after{content:"";position:absolute;width:16px;height:16px;background:#fff;border-radius:50%;top:3px;left:3px;transition:.2s}
+.toggle.on::after{left:23px}
+.btn{background:var(--accent);color:#1a0f2e;border:0;border-radius:7px;padding:.3rem .7rem;font-size:.78rem;font-weight:600;cursor:pointer}
+.status{margin-top:.8rem;padding:.45rem .8rem;background:rgba(74,222,128,.1);border:1px solid rgba(74,222,128,.3);border-radius:8px;font-size:.8rem;color:var(--success);text-align:center;min-height:1.4rem}
+.footer{margin-top:1rem;font-size:.72rem;color:var(--muted);text-align:center;max-width:340px;line-height:1.4}
+</style>
+</head>
+<body>
+  <h1>Auto-Generated Menu</h1>
+  <div class="sub">Reconstructed from ${escapeHtml(filename)}</div>
+  <div class="box">
+    <div class="title">Menu</div>
+    <div class="tabs" id="tabs"></div>
+    <div class="content" id="content"></div>
+  </div>
+  <div class="status" id="status">Ready</div>
+  <div class="footer">This is an automatic reconstruction. Toggles/buttons only show feedback – they do not affect any real game.</div>
+<script>
+const data = ${catsJson};
+const tabsEl = document.getElementById("tabs");
+const contentEl = document.getElementById("content");
+const statusEl = document.getElementById("status");
+let current = Object.keys(data)[0];
+function setStatus(m){statusEl.textContent=m}
+function renderTabs(){
+  tabsEl.innerHTML="";
+  Object.keys(data).forEach(c=>{
+    const b=document.createElement("button");
+    b.className="tab"+(c===current?" active":"");
+    b.textContent=c.charAt(0).toUpperCase()+c.slice(1);
+    b.onclick=()=>{current=c;renderTabs();renderContent()};
+    tabsEl.appendChild(b);
+  });
+}
+function renderContent(){
+  contentEl.innerHTML="";
+  (data[current]||[]).forEach(item=>{
+    const row=document.createElement("div");
+    row.className="item";
+    const left=document.createElement("div");
+    left.innerHTML='<div class="item-label">'+item.label+'</div><div class="item-type">'+item.type+'</div>';
+    row.appendChild(left);
+    if(item.type==="toggle"){
+      const t=document.createElement("div");
+      t.className="toggle";
+      t.onclick=()=>{t.classList.toggle("on");setStatus(item.label+" → "+(t.classList.contains("on")?"ON":"OFF"))};
+      row.appendChild(t);
+    } else {
+      const b=document.createElement("button");
+      b.className="btn";
+      b.textContent=item.type==="stepper"?"±":"Run";
+      b.onclick=()=>setStatus("Executed: "+item.label);
+      row.appendChild(b);
+    }
+    contentEl.appendChild(row);
+  });
+}
+renderTabs();renderContent();
+</script>
+</body>
+</html>`;
 }
 
 // Live HTML preview (visual output)
